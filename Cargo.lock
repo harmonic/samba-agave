@@ -8301,6 +8301,7 @@ dependencies = [
  "solana-gossip",
  "solana-hard-forks",
  "solana-hash 3.1.0",
+ "solana-harmonic-tpu",
  "solana-instruction",
  "solana-keypair",
  "solana-ledger",
@@ -8992,6 +8993,14 @@ dependencies = [
  "serde_derive",
  "solana-frozen-abi",
  "solana-frozen-abi-macro",
+]
+
+[[package]]
+name = "solana-harmonic-tpu"
+version = "3.1.2"
+dependencies = [
+ "log",
+ "solana-gossip",
 ]
 
 [[package]]

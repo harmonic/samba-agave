@@ -117,6 +117,7 @@ members = [
     "tps-client",
     "tpu-client",
     "tpu-client-next",
+    "harmonic-tpu",
     "transaction-context",
     "transaction-dos",
     "transaction-metrics-tracker",
