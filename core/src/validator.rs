@@ -73,6 +73,7 @@ use {
         node::{Node, NodeMultihoming},
     },
     solana_hard_forks::HardForks,
+    solana_harmonic_tpu::{HarmonicTpuService, HarmonicTpuServiceConfig},
     solana_hash::Hash,
     solana_keypair::Keypair,
     solana_ledger::{
@@ -754,6 +755,8 @@ pub struct Validator {
     // We don't wait for its JoinHandle here because ownership and shutdown
     // are managed elsewhere. This variable is intentionally unused.
     _tpu_client_next_runtime: Option<TokioRuntime>,
+    // FIREDANCER: Harmonic TPU service for bundle integration
+    harmonic_tpu_service: HarmonicTpuService,
 }
 
 impl Validator {
@@ -1815,6 +1818,20 @@ impl Validator {
             // FIREDANCER: GossipService should  send cluster nodes updates to Firedancer
             true,
         );
+
+        // FIREDANCER: Initialize harmonic TPU service to receive TPU updates from bundle tile
+        let local_tpu_addr = node.info.tpu(solana_gossip::contact_info::Protocol::QUIC)
+            .expect("node should have TPU address");
+        let local_tpu_forwards_addr = node.info.tpu_forwards(solana_gossip::contact_info::Protocol::QUIC)
+            .expect("node should have TPU forwards address");
+        let harmonic_tpu_service = HarmonicTpuService::new(
+            HarmonicTpuServiceConfig {
+                local_tpu_addr,
+                local_tpu_forwards_addr,
+            },
+            cluster_info.clone(),
+        );
+
         let serve_repair = config.repair_handler_type.create_serve_repair(
             blockstore.clone(),
             cluster_info.clone(),
@@ -2246,6 +2263,7 @@ impl Validator {
             repair_quic_endpoints_join_handle,
             xdp_retransmitter,
             _tpu_client_next_runtime: tpu_client_next_runtime,
+            harmonic_tpu_service,
         })
     }
 
@@ -2348,6 +2366,7 @@ impl Validator {
         }
 
         self.gossip_service.join().expect("gossip_service");
+        self.harmonic_tpu_service.join();
         self.repair_quic_endpoints
             .iter()
             .flatten()

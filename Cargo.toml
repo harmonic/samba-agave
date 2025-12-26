@@ -117,6 +117,7 @@ members = [
     "tps-client",
     "tpu-client",
     "tpu-client-next",
+    "harmonic-tpu",
     "transaction-context",
     "transaction-dos",
     "transaction-metrics-tracker",
@@ -556,6 +557,7 @@ solana-tls-utils = { path = "tls-utils", version = "=3.1.2", features = ["agave-
 solana-tps-client = { path = "tps-client", version = "=3.1.2", features = ["agave-unstable-api"] }
 solana-tpu-client = { path = "tpu-client", version = "=3.1.2", default-features = false, features = ["agave-unstable-api"] }
 solana-tpu-client-next = { path = "tpu-client-next", version = "=3.1.2", features = ["agave-unstable-api"] }
+solana-harmonic-tpu = { path = "harmonic-tpu", version = "=3.1.2" }
 solana-transaction = "3.0.1"
 solana-transaction-context = { path = "transaction-context", version = "=3.1.2", features = ["agave-unstable-api", "bincode"] }
 solana-transaction-error = "3.0.0"
