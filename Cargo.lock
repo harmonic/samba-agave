@@ -163,7 +163,7 @@ dependencies = [
  "dirs-next",
  "indicatif 0.18.0",
  "nix",
- "reqwest 0.12.24",
+ "reqwest 0.12.28",
  "scopeguard",
  "semver 1.0.27",
  "serde",
@@ -6178,11 +6178,10 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
-version = "0.12.24"
+version = "0.12.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9d0946410b9f7b082a427e4ef5c8ff541a88b357bc6c637c40db3a68ac70a36f"
+checksum = "eddd3ca559203180a307f12d114c268abf583f59b03cb906fd0b3ff8646c1147"
 dependencies = [
- "async-compression",
  "base64 0.22.1",
  "bytes",
  "futures-channel",
@@ -6208,7 +6207,6 @@ dependencies = [
  "sync_wrapper 1.0.2",
  "tokio",
  "tokio-rustls 0.26.2",
- "tokio-util 0.7.16",
  "tower 0.5.2",
  "tower-http",
  "tower-service",
@@ -6228,7 +6226,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "http 1.1.0",
- "reqwest 0.12.24",
+ "reqwest 0.12.28",
  "serde",
  "thiserror 1.0.69",
  "tower-service",
@@ -7704,7 +7702,7 @@ dependencies = [
  "log",
  "predicates",
  "regex",
- "reqwest 0.12.24",
+ "reqwest 0.12.28",
  "semver 1.0.27",
  "serde",
  "serial_test",
@@ -7810,7 +7808,7 @@ dependencies = [
  "log",
  "num-traits",
  "pretty-hex",
- "reqwest 0.12.24",
+ "reqwest 0.12.28",
  "semver 1.0.27",
  "serde",
  "serde_json",
@@ -8475,7 +8473,7 @@ dependencies = [
  "console 0.16.1",
  "indicatif 0.18.0",
  "log",
- "reqwest 0.12.24",
+ "reqwest 0.12.28",
  "solana-clock",
  "solana-file-download",
  "solana-genesis-config",
@@ -9432,7 +9430,7 @@ dependencies = [
  "gethostname",
  "log",
  "rand 0.8.5",
- "reqwest 0.12.24",
+ "reqwest 0.12.28",
  "serial_test",
  "solana-cluster-type",
  "solana-metrics",
@@ -9519,7 +9517,7 @@ name = "solana-notifier"
 version = "3.1.2"
 dependencies = [
  "log",
- "reqwest 0.12.24",
+ "reqwest 0.12.28",
  "serde_json",
  "solana-hash",
 ]
@@ -10185,7 +10183,7 @@ dependencies = [
  "jsonrpc-core",
  "jsonrpc-http-server",
  "log",
- "reqwest 0.12.24",
+ "reqwest 0.12.28",
  "reqwest-middleware",
  "semver 1.0.27",
  "serde",
@@ -10223,7 +10221,7 @@ version = "3.1.2"
 dependencies = [
  "anyhow",
  "jsonrpc-core",
- "reqwest 0.12.24",
+ "reqwest 0.12.28",
  "reqwest-middleware",
  "serde",
  "serde_json",
@@ -10303,7 +10301,7 @@ dependencies = [
  "crossbeam-channel",
  "futures-util",
  "log",
- "reqwest 0.12.24",
+ "reqwest 0.12.28",
  "serde",
  "serde_json",
  "solana-account-decoder",
@@ -13157,17 +13155,22 @@ dependencies = [
 
 [[package]]
 name = "tower-http"
-version = "0.6.6"
+version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "adc82fd73de2a9722ac5da747f12383d2bfdb93591ee6c58486e0097890f05f2"
+checksum = "d4e6559d53cc268e5031cd8429d05415bc4cb4aefc4aa5d6cc35fbf5b924a1f8"
 dependencies = [
+ "async-compression",
  "bitflags 2.9.4",
  "bytes",
+ "futures-core",
  "futures-util",
  "http 1.1.0",
  "http-body 1.0.1",
+ "http-body-util",
  "iri-string",
  "pin-project-lite",
+ "tokio",
+ "tokio-util 0.7.16",
  "tower 0.5.2",
  "tower-layer",
  "tower-service",
