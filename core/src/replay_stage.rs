@@ -3501,15 +3501,16 @@ impl ReplayStage {
                 }
 
                 // FIREDANCER: Tell resolv tile the blockhash.
-                let mut memory: [u8; 40] = [0; 40];
+                let mut memory: [u8; 48] = [0; 48];
                 memory[0..8].copy_from_slice(&bank.slot().to_le_bytes());
                 memory[8..40].copy_from_slice(bank.last_blockhash().as_ref());
+                memory[40..48].copy_from_slice(&bank.block_height().to_le_bytes());
 
                 extern "C" {
                     fn fd_ext_resolv_publish_completed_blockhash(data: *const u8, len: u64);
                 }
                 unsafe {
-                    fd_ext_resolv_publish_completed_blockhash(memory.as_ptr(), 40);
+                    fd_ext_resolv_publish_completed_blockhash(memory.as_ptr(), 48);
                 }
 
                 if let Some(sender) = bank_notification_sender {
