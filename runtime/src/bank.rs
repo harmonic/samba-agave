@@ -151,6 +151,7 @@ use {
         },
     },
     solana_svm_callback::{AccountState, InvokeContextCallback, TransactionProcessingCallback},
+    solana_svm_feature_set::SVMFeatureSet,
     solana_svm_timings::{ExecuteTimingType, ExecuteTimings},
     solana_svm_transaction::svm_message::SVMMessage,
     solana_system_transaction as system_transaction,
@@ -654,6 +655,7 @@ impl PartialEq for Bank {
             block_id,
             bank_hash_stats: _,
             epoch_rewards_calculation_cache: _,
+            runtime_feature_set: _,
             // Ignore new fields explicitly if they do not impact PartialEq.
             // Adding ".." will remove compile-time checks that if a new field
             // is added to the struct, this PartialEq is accordingly updated.
@@ -1011,6 +1013,10 @@ pub struct Bank {
     /// This is used to avoid recalculating the same epoch rewards at epoch boundary.
     /// The hashmap is keyed by parent_hash.
     epoch_rewards_calculation_cache: Arc<Mutex<HashMap<Hash, Arc<PartitionedRewardsCalculation>>>>,
+
+    /// Cached SVMFeatureSet, computed once at bank creation to avoid
+    /// 55 HashMap lookups per transaction batch dispatch.
+    runtime_feature_set: SVMFeatureSet,
 }
 
 #[derive(Debug)]
@@ -1218,6 +1224,8 @@ impl Bank {
             block_id: RwLock::new(None),
             bank_hash_stats: AtomicBankHashStats::default(),
             epoch_rewards_calculation_cache: Arc::new(Mutex::new(HashMap::default())),
+            runtime_feature_set: SVMFeatureSet::default(),
+
         };
 
         bank.transaction_processor =
@@ -1285,6 +1293,7 @@ impl Bank {
         bank.update_last_restart_slot();
         bank.transaction_processor
             .fill_missing_sysvar_cache_entries(&bank);
+        bank.runtime_feature_set = bank.feature_set.runtime_features();
         bank
     }
 
@@ -1467,6 +1476,8 @@ impl Bank {
             block_id: RwLock::new(None),
             bank_hash_stats: AtomicBankHashStats::default(),
             epoch_rewards_calculation_cache: parent.epoch_rewards_calculation_cache.clone(),
+            runtime_feature_set: SVMFeatureSet::default(),
+
         };
 
         let (_, ancestors_time_us) = measure_us!({
@@ -1575,6 +1586,18 @@ impl Bank {
             .stats
             .reset();
 
+        // Copy epoch-scoped caches from parent if same epoch, otherwise rebuild.
+        // Feature set and builtins are constant within an epoch.
+        if new.epoch() == parent.epoch() {
+            new.runtime_feature_set = parent.runtime_feature_set;
+            // Copy parent's builtin cache into child's transaction_processor
+            // (cheap clone vs re-extracting from global cache on first dispatch)
+            new.transaction_processor
+                .copy_builtin_program_cache_from(&parent.transaction_processor, new.slot());
+        } else {
+            new.runtime_feature_set = new.feature_set.runtime_features();
+            // New epoch: builtin cache will be populated on first dispatch
+        }
         new
     }
 
@@ -1584,6 +1607,7 @@ impl Bank {
             .write()
             .unwrap()
             .set_fork_graph(fork_graph);
+
     }
 
     fn prepare_program_cache_for_upcoming_feature_set(&self) {
@@ -1962,6 +1986,8 @@ impl Bank {
             block_id: RwLock::new(None),
             bank_hash_stats: AtomicBankHashStats::new(&fields.bank_hash_stats),
             epoch_rewards_calculation_cache: Arc::new(Mutex::new(HashMap::default())),
+            runtime_feature_set: SVMFeatureSet::default(),
+
         };
 
         // Sanity assertions between bank snapshot and genesis config
@@ -1997,6 +2023,7 @@ impl Bank {
                 .build()
                 .expect("new rayon threadpool")
         });
+        bank.runtime_feature_set = bank.feature_set.runtime_features();
 
         datapoint_info!(
             "bank-new-from-fields",
@@ -3391,7 +3418,7 @@ impl Bank {
             blockhash,
             blockhash_lamports_per_signature,
             epoch_total_stake: self.get_current_epoch_total_stake(),
-            feature_set: self.feature_set.runtime_features(),
+            feature_set: self.runtime_feature_set,
             program_runtime_environments_for_execution: self
                 .transaction_processor
                 .environments
