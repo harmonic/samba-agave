@@ -551,7 +551,7 @@ solana-system-interface = "2.0"
 solana-system-program = { path = "programs/system", version = "=3.1.8", features = ["agave-unstable-api"] }
 solana-system-transaction = "3.0.0"
 solana-sysvar = "3.0.0"
-solana-sysvar-id = "3.0.0"
+solana-sysvar-id = "3.1.0"
 solana-test-validator = { path = "test-validator", version = "=3.1.8" }
 solana-time-utils = "3.0.0"
 solana-tls-utils = { path = "tls-utils", version = "=3.1.8", features = ["agave-unstable-api"] }
