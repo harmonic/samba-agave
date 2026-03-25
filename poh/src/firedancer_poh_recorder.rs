@@ -256,7 +256,8 @@ impl PohRecorder {
                 None => u64::MAX,
                 Some(feature_slot) => {
                     let epoch_schedule = reset_bank.epoch_schedule();
-                    epoch_schedule.get_epoch(feature_slot) as Slot
+                    let feature_epoch = epoch_schedule.get_epoch(feature_slot);
+                    epoch_schedule.get_first_slot_in_epoch(feature_epoch + 1)
                 }
             }
         }
