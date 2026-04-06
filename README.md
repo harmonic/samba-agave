@@ -10,6 +10,8 @@
 [![Release status](https://github.com/anza-xyz/agave/actions/workflows/release.yml/badge.svg)](https://github.com/anza-xyz/agave/actions/workflows/release.yml)
 [![codecov](https://codecov.io/gh/anza-xyz/agave/branch/master/graph/badge.svg)](https://codecov.io/gh/anza-xyz/agave)
 
+This repository contains Harmonic's fork of the Agave submodule for the [Samba](https://github.com/harmonic/samba) Harmonic client.
+
 # Building
 
 ## **1. Install rustc, cargo and rustfmt.**
