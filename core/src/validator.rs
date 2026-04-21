@@ -75,6 +75,7 @@ use {
         node::{Node, NodeMultihoming},
     },
     solana_hard_forks::HardForks,
+    solana_harmonic_tpu::{HarmonicTpuService, HarmonicTpuServiceConfig},
     solana_hash::Hash,
     solana_keypair::Keypair,
     solana_leader_schedule::FixedSchedule,
@@ -757,6 +758,8 @@ pub struct Validator {
     // We don't wait for its JoinHandle here because ownership and shutdown
     // are managed elsewhere. This variable is intentionally unused.
     _tpu_client_next_runtime: Option<TokioRuntime>,
+    // FIREDANCER: Harmonic TPU service for bundle integration
+    harmonic_tpu_service: HarmonicTpuService,
 }
 
 impl Validator {
@@ -1825,6 +1828,23 @@ impl Validator {
             // FIREDANCER: GossipService should  send cluster nodes updates to Firedancer
             true,
         );
+
+        // FIREDANCER: Initialize harmonic TPU service to receive TPU updates from bundle tile.
+        // The harmonic-tpu service receives UDP TPU addresses from the bundle tile and
+        // derives the matching QUIC addresses (UDP port + 6) before publishing both to
+        // gossip.  We therefore pass the local UDP TPU addresses as the fall-back values.
+        let local_tpu_udp_addr = node.info.tpu(solana_gossip::contact_info::Protocol::UDP)
+            .expect("node should have TPU UDP address");
+        let local_tpu_forwards_udp_addr = node.info.tpu_forwards(solana_gossip::contact_info::Protocol::UDP)
+            .expect("node should have TPU forwards UDP address");
+        let harmonic_tpu_service = HarmonicTpuService::new(
+            HarmonicTpuServiceConfig {
+                local_tpu_udp_addr,
+                local_tpu_forwards_udp_addr,
+            },
+            cluster_info.clone(),
+        );
+
         let serve_repair = {
             let bank_forks_r = bank_forks.read().unwrap();
             let leader_state = poh_recorder.read().unwrap().shared_leader_state();
@@ -2234,6 +2254,7 @@ impl Validator {
             repair_quic_endpoints_join_handle,
             xdp_retransmitter,
             _tpu_client_next_runtime: tpu_client_next_runtime,
+            harmonic_tpu_service,
         })
     }
 
@@ -2386,6 +2407,7 @@ impl Validator {
             .expect("snapshot_packager_service");
 
         self.gossip_service.join().expect("gossip_service");
+        self.harmonic_tpu_service.join();
         self.repair_quic_endpoints
             .iter()
             .flatten()
