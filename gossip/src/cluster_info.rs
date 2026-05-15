@@ -433,6 +433,16 @@ impl ClusterInfo {
         Ok(())
     }
 
+    // FIREDANCER: UDP TPU setter for harmonic-tpu service.
+    pub fn set_tpu_udp(&self, tpu_addr: SocketAddr) -> Result<(), ContactInfoError> {
+        self.my_contact_info
+            .write()
+            .unwrap()
+            .set_tpu(contact_info::Protocol::UDP, tpu_addr)?;
+        self.refresh_my_gossip_contact_info();
+        Ok(())
+    }
+
     pub fn set_tpu_forwards_quic(
         &self,
         tpu_forwards_addr: SocketAddr,
@@ -441,6 +451,19 @@ impl ClusterInfo {
             .write()
             .unwrap()
             .set_tpu_forwards(contact_info::Protocol::QUIC, tpu_forwards_addr)?;
+        self.refresh_my_gossip_contact_info();
+        Ok(())
+    }
+
+    // FIREDANCER: UDP TPU-forwards setter for harmonic-tpu service.
+    pub fn set_tpu_forwards_udp(
+        &self,
+        tpu_forwards_addr: SocketAddr,
+    ) -> Result<(), ContactInfoError> {
+        self.my_contact_info
+            .write()
+            .unwrap()
+            .set_tpu_forwards(contact_info::Protocol::UDP, tpu_forwards_addr)?;
         self.refresh_my_gossip_contact_info();
         Ok(())
     }
