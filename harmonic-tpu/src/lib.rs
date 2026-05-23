@@ -8,7 +8,7 @@ use {
     log::{error, info, warn},
     solana_gossip::cluster_info::ClusterInfo,
     std::{
-        net::{Ipv4Addr, SocketAddr},
+        net::{IpAddr, Ipv4Addr, SocketAddr},
         sync::{
             atomic::{AtomicBool, Ordering},
             Arc, Mutex, OnceLock,
@@ -40,10 +40,57 @@ struct TpuUpdateState {
     last_status: AtomicBool,
 }
 
-static TPU_UPDATE_STATE: OnceLock<Mutex<Option<TpuUpdateState>>> = OnceLock::new();
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct TpuUpdate {
+    is_connected: bool,
+    tpu_udp_addr: SocketAddr,
+    tpu_forwards_udp_addr: SocketAddr,
+}
 
-fn get_tpu_update_state() -> &'static Mutex<Option<TpuUpdateState>> {
-    TPU_UPDATE_STATE.get_or_init(|| Mutex::new(None))
+struct TpuUpdateGlobal {
+    state: Option<TpuUpdateState>,
+    /// Updates received before HarmonicTpuService::new; applied on init.
+    pending: Option<TpuUpdate>,
+}
+
+static TPU_UPDATE_GLOBAL: OnceLock<Mutex<TpuUpdateGlobal>> = OnceLock::new();
+
+fn get_tpu_update_global() -> &'static Mutex<TpuUpdateGlobal> {
+    TPU_UPDATE_GLOBAL.get_or_init(|| {
+        Mutex::new(TpuUpdateGlobal {
+            state: None,
+            pending: None,
+        })
+    })
+}
+
+fn parse_tpu_update(
+    status: i32,
+    tpu_ip4_addr: u32,
+    tpu_port: u16,
+    tpu_fwd_ip4_addr: u32,
+    tpu_fwd_port: u16,
+) -> Option<TpuUpdate> {
+    let tpu_ip = Ipv4Addr::from(u32::from_be(tpu_ip4_addr));
+    let tpu_fwd_ip = Ipv4Addr::from(u32::from_be(tpu_fwd_ip4_addr));
+    let is_connected = match status {
+        TPU_STATUS_CONNECTED => true,
+        TPU_STATUS_DISCONNECTED => false,
+        _ => {
+            warn!("Ignoring unknown TPU status: {}", status);
+            return None;
+        }
+    };
+    Some(TpuUpdate {
+        is_connected,
+        tpu_udp_addr: SocketAddr::new(tpu_ip.into(), tpu_port),
+        tpu_forwards_udp_addr: SocketAddr::new(tpu_fwd_ip.into(), tpu_fwd_port),
+    })
+}
+
+fn connected_addrs_valid(update: &TpuUpdate) -> bool {
+    update.tpu_udp_addr.port() != 0
+        && update.tpu_udp_addr.ip() != IpAddr::V4(Ipv4Addr::UNSPECIFIED)
 }
 
 /// Apply TPU and TPU-forwards UDP addresses (and their derived QUIC addresses)
@@ -71,66 +118,23 @@ fn apply_tpu_addrs(
     }
 }
 
-/// Called from C (fd_pohh_tile.c) when the bundle tile sends a TPU update.
-/// This function is called from the poh tile thread, so it must be thread-safe.
-///
-/// `tpu_port` and `tpu_fwd_port` are UDP ports; the QUIC ports advertised in
-/// gossip are derived as `udp_port + TPU_QUIC_PORT_OFFSET`.
-///
-/// cavey TODO: technically this is fallible, but we just log errors rn.
-/// discoh/pohh assumes this succeeds.
-#[no_mangle]
-pub extern "C" fn fd_ext_tpu_update(
-    status: i32,
-    tpu_ip4_addr: u32,
-    tpu_port: u16,
-    tpu_fwd_ip4_addr: u32,
-    tpu_fwd_port: u16,
-) {
-    let state_lock = get_tpu_update_state();
-    let guard = match state_lock.lock() {
-        Ok(g) => g,
-        Err(e) => {
-            error!("Failed to lock TPU update state: {}", e);
-            return;
-        }
-    };
-
-    let state = match guard.as_ref() {
-        Some(s) => s,
-        None => {
-            // Service not initialized yet, ignore
-            return;
-        }
-    };
-
-    let was_connected = state.last_status.load(Ordering::Relaxed);
-    let is_connected = status == TPU_STATUS_CONNECTED;
-
-    if is_connected == was_connected {
-        // No change
-        return;
-    }
-
-    state.last_status.store(is_connected, Ordering::Relaxed);
-
-    if status == TPU_STATUS_CONNECTED {
-        let tpu_ip = Ipv4Addr::from(u32::from_be(tpu_ip4_addr));
-        let tpu_fwd_ip = Ipv4Addr::from(u32::from_be(tpu_fwd_ip4_addr));
-        let tpu_udp_addr = SocketAddr::new(tpu_ip.into(), tpu_port);
-        let tpu_forwards_udp_addr = SocketAddr::new(tpu_fwd_ip.into(), tpu_fwd_port);
-
+fn apply_tpu_update(state: &TpuUpdateState, update: &TpuUpdate) {
+    if update.is_connected {
         info!(
             "Bundle TPU connected, updating gossip: tpu_udp={}, tpu_quic={}, tpu_fwd_udp={}, \
              tpu_fwd_quic={}",
-            tpu_udp_addr,
-            quic_addr_for(tpu_udp_addr),
-            tpu_forwards_udp_addr,
-            quic_addr_for(tpu_forwards_udp_addr),
+            update.tpu_udp_addr,
+            quic_addr_for(update.tpu_udp_addr),
+            update.tpu_forwards_udp_addr,
+            quic_addr_for(update.tpu_forwards_udp_addr),
         );
 
-        apply_tpu_addrs(&state.cluster_info, tpu_udp_addr, tpu_forwards_udp_addr);
-    } else if status == TPU_STATUS_DISCONNECTED {
+        apply_tpu_addrs(
+            &state.cluster_info,
+            update.tpu_udp_addr,
+            update.tpu_forwards_udp_addr,
+        );
+    } else {
         info!(
             "Bundle TPU disconnected, reverting to local: tpu_udp={}, tpu_quic={}, \
              tpu_fwd_udp={}, tpu_fwd_quic={}",
@@ -148,6 +152,85 @@ pub extern "C" fn fd_ext_tpu_update(
     }
 }
 
+fn store_pending_update(global: &mut TpuUpdateGlobal, update: TpuUpdate) {
+    if update.is_connected {
+        if connected_addrs_valid(&update) {
+            global.pending = Some(update);
+        }
+    } else {
+        global.pending = None;
+    }
+}
+
+fn apply_pending_update(global: &mut TpuUpdateGlobal) {
+    let Some(pending) = global.pending.take() else {
+        return;
+    };
+
+    let Some(state) = global.state.as_ref() else {
+        global.pending = Some(pending);
+        return;
+    };
+
+    let was_connected = state.last_status.load(Ordering::Relaxed);
+    if pending.is_connected == was_connected {
+        return;
+    }
+
+    state.last_status.store(pending.is_connected, Ordering::Relaxed);
+    apply_tpu_update(state, &pending);
+}
+
+/// Called from C (fd_pohh_tile.c) when the bundle tile sends a TPU update.
+/// This function is called from the poh tile thread, so it must be thread-safe.
+///
+/// `tpu_port` and `tpu_fwd_port` are UDP ports; the QUIC ports advertised in
+/// gossip are derived as `udp_port + TPU_QUIC_PORT_OFFSET`.
+///
+/// cavey TODO: technically this is fallible, but we just log errors rn.
+/// discoh/pohh assumes this succeeds.
+#[no_mangle]
+pub extern "C" fn fd_ext_tpu_update(
+    status: i32,
+    tpu_ip4_addr: u32,
+    tpu_port: u16,
+    tpu_fwd_ip4_addr: u32,
+    tpu_fwd_port: u16,
+) {
+    let Some(update) = parse_tpu_update(
+        status,
+        tpu_ip4_addr,
+        tpu_port,
+        tpu_fwd_ip4_addr,
+        tpu_fwd_port,
+    ) else {
+        return;
+    };
+
+    let global_lock = get_tpu_update_global();
+    let mut global = match global_lock.lock() {
+        Ok(g) => g,
+        Err(e) => {
+            error!("Failed to lock TPU update state: {}", e);
+            return;
+        }
+    };
+
+    let Some(state) = global.state.as_ref() else {
+        store_pending_update(&mut global, update);
+        return;
+    };
+
+    let was_connected = state.last_status.load(Ordering::Relaxed);
+    if update.is_connected == was_connected {
+        // No change
+        return;
+    }
+
+    state.last_status.store(update.is_connected, Ordering::Relaxed);
+    apply_tpu_update(state, &update);
+}
+
 /// Configuration for the Harmonic TPU Service.
 ///
 /// Both addresses are UDP TPU addresses; the matching QUIC addresses are
@@ -161,7 +244,7 @@ pub struct HarmonicTpuServiceConfig {
 }
 
 /// Service that manages TPU address in gossip based on bundle connection status.
-/// 
+///
 /// This service initializes global state that is used by the fd_ext_tpu_update
 /// callback. The callback is invoked from the poh tile when the bundle tile
 /// sends a TPU connection update.
@@ -187,9 +270,10 @@ impl HarmonicTpuService {
             last_status: AtomicBool::new(false),
         };
 
-        let state_lock = get_tpu_update_state();
-        if let Ok(mut guard) = state_lock.lock() {
-            *guard = Some(state);
+        let global_lock = get_tpu_update_global();
+        if let Ok(mut global) = global_lock.lock() {
+            global.state = Some(state);
+            apply_pending_update(&mut global);
         } else {
             warn!("Failed to initialize TPU update state");
         }
@@ -199,11 +283,11 @@ impl HarmonicTpuService {
 
     pub fn join(self) {
         // Clean up global state
-        let state_lock = get_tpu_update_state();
-        if let Ok(mut guard) = state_lock.lock() {
-            *guard = None;
+        let global_lock = get_tpu_update_global();
+        if let Ok(mut global) = global_lock.lock() {
+            global.state = None;
+            global.pending = None;
         }
         info!("Harmonic TPU Service stopped");
     }
 }
-
