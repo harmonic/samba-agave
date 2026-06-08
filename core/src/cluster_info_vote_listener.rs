@@ -499,7 +499,7 @@ impl ClusterInfoVoteListener {
         sharable_banks: SharableBanks,
         verified_packets_sender: BankingPacketSender,
         verified_vote_transactions_sender: VerifiedVoteTransactionsSender,
-        poh_recorder: Arc<RwLock<PohRecorder>>,
+        _poh_recorder: Arc<RwLock<PohRecorder>>,
     ) -> Result<()> {
         let mut cursor = Cursor::default();
         while !exit.load(Ordering::Relaxed) {
@@ -514,10 +514,8 @@ impl ClusterInfoVoteListener {
                 // we are the leader.
                 // verified_packets_sender.send(BankingPacketBatch::new(packets))?;
                 let _ = verified_packets_sender;
-                if poh_recorder.read().unwrap().has_bank() {
-                    unsafe {
-                        ClusterInfoVoteListener::firedancer_send(cluster_info, packets_with_labels);
-                    }
+                unsafe {
+                    ClusterInfoVoteListener::firedancer_send(cluster_info, packets_with_labels);
                 }
             }
             sleep(Duration::from_millis(GOSSIP_SLEEP_MILLIS));
