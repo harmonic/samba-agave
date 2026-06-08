@@ -10,6 +10,7 @@ pub enum ClientId {
     Firedancer,
     AgaveBam,
     Sig,
+    HarmonicFiredancer,
     // If new variants are added, update From<u16> and TryFrom<ClientId>.
     Unknown(u16),
 }
@@ -25,6 +26,7 @@ impl fmt::Display for ClientId {
             Self::Firedancer => write!(f, "Firedancer"),
             Self::AgaveBam => write!(f, "AgaveBam"),
             Self::Sig => write!(f, "Sig"),
+            Self::HarmonicFiredancer => write!(f, "HarmonicFiredancer"),
             Self::Unknown(id) => write!(f, "Unknown({id})"),
         }
     }
@@ -41,6 +43,7 @@ impl From<u16> for ClientId {
             5u16 => Self::Firedancer,
             6u16 => Self::AgaveBam,
             7u16 => Self::Sig,
+            11u16 => Self::HarmonicFiredancer,
             _ => Self::Unknown(client),
         }
     }
@@ -59,7 +62,9 @@ impl TryFrom<ClientId> for u16 {
             ClientId::Firedancer => Ok(5u16),
             ClientId::AgaveBam => Ok(6u16),
             ClientId::Sig => Ok(7u16),
-            ClientId::Unknown(client @ 0u16..=7u16) => Err(format!("Invalid client: {client}")),
+            ClientId::HarmonicFiredancer => Ok(11u16),
+            ClientId::Unknown(client @ 0u16..=7u16)
+            | ClientId::Unknown(client @ 11u16) => Err(format!("Invalid client: {client}")),
             ClientId::Unknown(client) => Ok(client),
         }
     }
@@ -67,8 +72,8 @@ impl TryFrom<ClientId> for u16 {
 
 impl ClientId {
     pub const fn this_client() -> Self {
-        // FIREDANCER: Report client as Firedancer to gossip
-        Self::Frankendancer
+        // FIREDANCER: Report client as HarmonicFiredancer to gossip
+        Self::HarmonicFiredancer
     }
 }
 
@@ -86,7 +91,8 @@ mod test {
         assert_eq!(ClientId::from(5u16), ClientId::Firedancer);
         assert_eq!(ClientId::from(6u16), ClientId::AgaveBam);
         assert_eq!(ClientId::from(7u16), ClientId::Sig);
-        for client in 8u16..=u16::MAX {
+        assert_eq!(ClientId::from(11u16), ClientId::HarmonicFiredancer);
+        for client in (8u16..=u16::MAX).filter(|c| *c != 11u16) {
             assert_eq!(ClientId::from(client), ClientId::Unknown(client));
         }
         assert_eq!(u16::try_from(ClientId::SolanaLabs), Ok(0u16));
@@ -97,13 +103,14 @@ mod test {
         assert_eq!(u16::try_from(ClientId::Firedancer), Ok(5u16));
         assert_eq!(u16::try_from(ClientId::AgaveBam), Ok(6u16));
         assert_eq!(u16::try_from(ClientId::Sig), Ok(7u16));
-        for client in 0..=7u16 {
+        assert_eq!(u16::try_from(ClientId::HarmonicFiredancer), Ok(11u16));
+        for client in (0u16..=7u16).chain(std::iter::once(11u16)) {
             assert_eq!(
                 u16::try_from(ClientId::Unknown(client)),
                 Err(format!("Invalid client: {client}"))
             );
         }
-        for client in 8u16..=u16::MAX {
+        for client in (8u16..=u16::MAX).filter(|c| *c != 11u16) {
             assert_eq!(u16::try_from(ClientId::Unknown(client)), Ok(client));
         }
     }
@@ -118,6 +125,10 @@ mod test {
         assert_eq!(format!("{}", ClientId::Firedancer), "Firedancer");
         assert_eq!(format!("{}", ClientId::AgaveBam), "AgaveBam");
         assert_eq!(format!("{}", ClientId::Sig), "Sig");
+        assert_eq!(
+            format!("{}", ClientId::HarmonicFiredancer),
+            "HarmonicFiredancer"
+        );
         assert_eq!(format!("{}", ClientId::Unknown(0)), "Unknown(0)");
         assert_eq!(format!("{}", ClientId::Unknown(u16::MAX)), "Unknown(65535)");
     }
