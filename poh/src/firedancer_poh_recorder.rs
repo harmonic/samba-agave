@@ -94,8 +94,7 @@ impl PohRecorder {
 
         let (leader_first_tick_height, _, _) = crate::old_poh_recorder::PohRecorder::compute_leader_slot_tick_heights(next_leader_slot, ticks_per_slot);
 
-        let target_tick_duration_nanos: u64 = PohService::target_tick_ns_adjusted(
-            ticks_per_slot, poh_config.target_tick_duration.as_nanos().try_into().unwrap() );
+        let target_tick_duration_nanos: u64 = poh_config.target_tick_duration.as_nanos().try_into().unwrap();
 
         unsafe { fd_ext_poh_initialize(target_tick_duration_nanos, poh_config.hashes_per_tick.unwrap_or(1), ticks_per_slot, tick_height, last_entry_hash.as_ref().as_ptr(), clear_bank_sender as *mut c_void) };
 
@@ -258,7 +257,11 @@ impl PohRecorder {
 
            This also applies to the shred_slot_limits that change with
            the reduce_slot_time feature gates, which are sent along the
-           same path to the shred tile. */
+           same path to the shred tile.
+
+           This is not elegant, and it should be revised in the future
+           (TODO), but it provides a "temporary" working solution to
+           handle features activation. */
         let mut features_activation_slot: [u64; FD_POH_RECORDER_FEATURES_OF_INTEREST_CNT] = [u64::MAX; FD_POH_RECORDER_FEATURES_OF_INTEREST_CNT];
         for (i, pubkey) in FD_POH_RECORDER_FEATURES_OF_INTEREST.iter().enumerate() {
             features_activation_slot[i] = match reset_bank.feature_set.activated_slot(pubkey) {

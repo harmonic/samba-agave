@@ -493,7 +493,7 @@ impl ClusterInfoVoteListener {
         sharable_banks: SharableBanks,
         verified_packets_sender: BankingPacketSender,
         verified_vote_transactions_sender: VerifiedVoteTransactionsSender,
-        poh_recorder: Arc<RwLock<PohRecorder>>,
+        _poh_recorder: Arc<RwLock<PohRecorder>>,
     ) -> Result<()> {
         #[derive(Default)]
         struct Stats {
@@ -525,10 +525,8 @@ impl ClusterInfoVoteListener {
                 // stats.banking_channel_eviction_drops +=
                 //     verified_packets_sender.send(BankingPacketBatch::new(packets))?;
                 let _ = verified_packets_sender;
-                if poh_recorder.read().unwrap().has_bank() {
-                    unsafe {
-                        ClusterInfoVoteListener::firedancer_send(cluster_info, packets_with_labels);
-                    }
+                unsafe {
+                    ClusterInfoVoteListener::firedancer_send(cluster_info, packets_with_labels);
                 }
             }
             if last_report.elapsed() >= STATS_REPORT_INTERVAL {
