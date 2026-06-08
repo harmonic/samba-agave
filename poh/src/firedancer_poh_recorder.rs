@@ -93,15 +93,7 @@ impl PohRecorder {
 
         let (leader_first_tick_height, _, _) = crate::old_poh_recorder::PohRecorder::compute_leader_slot_tick_heights(next_leader_slot, ticks_per_slot);
 
-        const TARGET_SLOT_ADJUSTMENT_NS: u64 = 50_000_000;
-        let adjustment_per_tick: u64 = if ticks_per_slot > 0 {
-            TARGET_SLOT_ADJUSTMENT_NS / ticks_per_slot
-        } else {
-            0
-        };
-
         let target_tick_duration_nanos: u64 = poh_config.target_tick_duration.as_nanos().try_into().unwrap();
-        let target_tick_duration_nanos: u64 = target_tick_duration_nanos.saturating_sub(adjustment_per_tick);
 
         unsafe { fd_ext_poh_initialize(target_tick_duration_nanos, poh_config.hashes_per_tick.unwrap_or(1), ticks_per_slot, tick_height, last_entry_hash.as_ref().as_ptr(), clear_bank_sender as *mut c_void) };
 
@@ -253,7 +245,9 @@ impl PohRecorder {
            Due to the fact that their computation requires the bank,
            we are forced (so far) to implement it here, sending them
            to the poh tile as an intermediary (before forwarding them
-           to the shred tile). */
+           to the shred tile). This is not elegant, and it should be
+           revised in the future (TODO), but it provides a "temporary"
+           working solution to handle features activation. */
         let mut features_activation_slot: [u64; FD_POH_RECORDER_FEATURES_OF_INTEREST_CNT] = [u64::MAX; FD_POH_RECORDER_FEATURES_OF_INTEREST_CNT];
         for (i, pubkey) in FD_POH_RECORDER_FEATURES_OF_INTEREST.iter().enumerate() {
             features_activation_slot[i] = match reset_bank.feature_set.activated_slot(pubkey) {
